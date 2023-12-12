@@ -1,6 +1,5 @@
 use types::Transaction;
 
-
 #[zbus::dbus_proxy(
     default_service = "dev.bedsteler20.ApphubDamon",
     interface = "dev.bedsteler20.ApphubDamon",
@@ -15,6 +14,7 @@ trait _ApphubDamon {
         &self,
         app_id: &str,
         install_location: types::InstallLocation,
+        transaction_type: types::TransactionType,
     ) -> zbus::Result<u32>;
 
     fn install(&self, transaction_id: u32) -> zbus::Result<()>;
@@ -24,6 +24,12 @@ trait _ApphubDamon {
 
     #[dbus_proxy(signal)]
     fn transaction_added(&self, transaction: Transaction) -> zbus::Result<()>;
+
+    #[dbus_proxy(signal)]
+    fn transaction_error(&self, transaction_id: u32, error: String) -> zbus::Result<()>;
+
+    #[dbus_proxy(signal)]
+    fn transaction_done(&self, transaction_id: u32) -> zbus::Result<()>;
 }
 
 pub use _ApphubDamonProxy as ApphubDamonProxy;

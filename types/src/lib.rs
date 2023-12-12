@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "libflatpak")]
 mod flatpak;
@@ -22,29 +22,37 @@ pub enum InstallLocation {
     User,
 }
 
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, zvariant::Type)]
-pub struct  Transaction {
+pub struct Transaction {
     pub id: u32,
     pub app_id: String,
     pub progress: f64,
     pub error: String,
+    pub done: bool,
+    pub install_location: InstallLocation,
+    pub transaction_type: TransactionType,
 }
 
 impl Transaction {
-    pub fn new(app_id: &str, install_location: InstallLocation) -> Self {
+    pub fn new(
+        app_id: &str,
+        install_location: InstallLocation,
+        transaction_type: TransactionType,
+    ) -> Self {
         Self {
             id: glib::random_int(),
             app_id: app_id.into(),
             progress: 0.0,
             error: "".into(),
+            done: false,
+            install_location,
+            transaction_type,
         }
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, zvariant::Type)]
+#[derive(Clone, Debug, serde::Serialize, Deserialize, zvariant::Type)]
 pub enum TransactionType {
-    None,
     Install,
     Uninstall,
     Update,

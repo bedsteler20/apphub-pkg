@@ -1,15 +1,15 @@
-use crate::daemon::ApphubDaemon;
+use crate::damon::ApphubDamon;
 use std::{error::Error, future::pending};
 
-mod daemon;
+mod damon;
 mod imp;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let damon = ApphubDaemon::new().await;
+    let damon = ApphubDamon::new().await;
     let _con = zbus::ConnectionBuilder::session()?
-        .name("dev.bedsteler20.ApphubDaemon")?
-        .serve_at("/dev/bedsteler20/ApphubDaemon", damon)?
+        .name("dev.bedsteler20.ApphubDamon")?
+        .serve_at("/dev/bedsteler20/ApphubDamon", damon)?
         .build()
         .await?;
     pending::<()>().await;

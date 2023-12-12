@@ -1,31 +1,24 @@
 use crate::imp;
-use async_std::{
-    channel::{Receiver, Sender},
-    sync::Mutex,
-    task,
-};
-use libflatpak::gio;
+use async_std::{sync::Mutex, task};
 use libflatpak::glib;
-use libflatpak::prelude::*;
+use types::TransactionType;
 use types::{AppInfo, InstallLocation, Transaction};
 use zbus::{dbus_interface, fdo, SignalContext};
 
-pub struct ApphubDaemon {
-    cancel_map: Vec<(u32, gio::Cancellable)>,
+pub struct ApphubDamon {
     store: Mutex<Vec<Transaction>>,
 }
 
-impl ApphubDaemon {
+impl ApphubDamon {
     pub async fn new() -> Self {
         Self {
-            cancel_map: vec![],
             store: Mutex::new(vec![]),
         }
     }
 }
 
 #[dbus_interface(name = "dev.bedsteler20.ApphubDamon")]
-impl ApphubDaemon {
+impl ApphubDamon {
     async fn get_app_info(&self, app_id: &str) -> fdo::Result<AppInfo> {
         match imp::get_app_info(app_id) {
             Ok(Some(app_info)) => Ok(app_info),
@@ -63,11 +56,17 @@ impl ApphubDaemon {
         &self,
         app_id: &str,
         install_location: InstallLocation,
+        transaction_type: TransactionType,
+        #[zbus(signal_context)] ctx: SignalContext<'_>,
     ) -> fdo::Result<u32> {
         let mut store = self.store.lock().await;
-        let transaction = Transaction::new(app_id, install_location);
+        let transaction = Transaction::new(app_id, install_location, transaction_type);
         let id = transaction.id;
-        store.push(transaction);
+        store.push(transaction.clone());
+        println!("Transaction added");
+        Self::transaction_added(&ctx, transaction.clone())
+            .await
+            .unwrap();
         Ok(id)
     }
 
@@ -100,6 +99,7 @@ impl ApphubDaemon {
                     let mut store = self.store.lock().await;
                     let transaction = store.iter_mut().find(|t| t.id == transaction_id).unwrap();
                     transaction.progress = progress;
+
                     Self::progress_changed(&ctx, transaction_id, progress)
                         .await
                         .unwrap();
@@ -111,7 +111,8 @@ impl ApphubDaemon {
                 }
                 Msg::Done => {
                     let mut store = self.store.lock().await;
-                    let transaction = store.iter_mut().find(|t| t.id == transaction_id).unwrap();
+                    Self::transaction_done(&ctx, transaction_id).await.unwrap();
+                    store.retain(|t| t.id != transaction_id);
                     break;
                 }
             }
@@ -128,5 +129,21 @@ impl ApphubDaemon {
     ) -> Result<(), zbus::Error>;
 
     #[dbus_interface(signal)]
-    async fn transaction_added(ctx: &SignalContext<'_>, transaction: Transaction) -> Result<(), zbus::Error>;
+    async fn transaction_added(
+        ctx: &SignalContext<'_>,
+        transaction: Transaction,
+    ) -> Result<(), zbus::Error>;
+
+    #[dbus_interface(signal)]
+    async fn transaction_error(
+        ctx: &SignalContext<'_>,
+        transaction_id: u32,
+        error: String,
+    ) -> Result<(), zbus::Error>;
+
+    #[dbus_interface(signal)]
+    async fn transaction_done(
+        ctx: &SignalContext<'_>,
+        transaction_id: u32,
+    ) -> Result<(), zbus::Error>;
 }
